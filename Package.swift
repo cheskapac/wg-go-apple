@@ -5,7 +5,7 @@ import PackageDescription
 
 let filename = "wg-kit-go.xcframework.zip"
 let version = "0.0.20250901"
-let checksum = ""
+let checksum = "820a01401e11807a748dd26b0cd48caf9503fbba4339baa25ebf76fced5ac7cf"
 
 let package = Package(
     name: "wg-kit-go",
