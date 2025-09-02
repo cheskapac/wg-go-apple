@@ -26,7 +26,11 @@ DESTDIR ?= $(CONFIGURATION_BUILD_DIR)
 BUILDDIR ?= $(CONFIGURATION_TEMP_DIR)/wireguard-go-bridge
 INCLUDEDIR := $(BUILDDIR)/include
 
-CFLAGS_PREFIX := -isysroot "$(SDKROOT)"
+# Per-platform SDK roots so we don't mix MacOSX sysroot with iPhone targets
+# Use direct paths since xcrun is not working properly
+SDKROOT_macosx := /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+SDKROOT_iphoneos := /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk
+SDKROOT_iphonesimulator := /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk
 
 # GOOS mapping
 GOOS_macosx := $(if $(IS_CATALYST),ios,darwin)
@@ -64,16 +68,19 @@ $(GOROOT)/.prepared:
 # Produces: $(BUILDDIR)/libwg-kit-go-<triple>.a and header next to it; also sync a canonical header to $(INCLUDEDIR)/wg-kit-go.h
 define libwg-kit-go-a
 $(BUILDDIR)/libwg-kit-go-$(1).a: export CGO_ENABLED := 1
-$(BUILDDIR)/libwg-kit-go-$(1).a: export CGO_CFLAGS := $(CFLAGS_PREFIX) -target $(1)
-$(BUILDDIR)/libwg-kit-go-$(1).a: export CGO_LDFLAGS := $(CFLAGS_PREFIX) -target $(1)
+$(BUILDDIR)/libwg-kit-go-$(1).a: export CGO_CFLAGS := -isysroot "$(if $(findstring macosx,$(1)),$(SDKROOT_macosx),$(if $(findstring -simulator,$(1)),$(SDKROOT_iphonesimulator),$(SDKROOT_iphoneos)))" -target $(1)
+$(BUILDDIR)/libwg-kit-go-$(1).a: export CGO_LDFLAGS := -isysroot "$(if $(findstring macosx,$(1)),$(SDKROOT_macosx),$(if $(findstring -simulator,$(1)),$(SDKROOT_iphonesimulator),$(SDKROOT_iphoneos)))" -target $(1)
 $(BUILDDIR)/libwg-kit-go-$(1).a: export GOOS := $(if $(findstring macosx,$(1)),$(GOOS_macosx),$(GOOS_iphoneos))
 $(BUILDDIR)/libwg-kit-go-$(1).a: export GOARCH := $(subst x86_64,amd64,$(word 1,$(subst -, ,$(1))))
 $(BUILDDIR)/libwg-kit-go-$(1).a: $(GOROOT)/.prepared go.mod
+	@echo "Building target: $(1)"
+	@echo "SDK_FOR_TARGET: $$(SDK_FOR_TARGET)"
+	@echo "CGO_CFLAGS: $$(CGO_CFLAGS)"
 	go build -ldflags=-w -trimpath -v -o "$(BUILDDIR)/libwg-kit-go-$(1).a" -buildmode c-archive
 	# Keep the generated header; copy first one we see to canonical include path
-	@if [ ! -f "$(INCLUDEDIR)/wg-kit-go.h" ]; then \
-	  h="$$(dirname "$@")/$$(basename "$@" .a).h"; \
-	  [ -f "$$h" ] && cp -f "$$h" "$(INCLUDEDIR)/wg-kit-go.h"; \
+	@h="$$(dirname "$@")/$$(basename "$@" .a).h"; \
+	if [ -f "$$h" ]; then \
+	  cp -f "$$h" "$(INCLUDEDIR)/wg-kit-go.h"; \
 	fi
 endef
 
@@ -86,6 +93,15 @@ $(foreach T,$(IOS_SIM_TARGETS),$(eval $(call libwg-kit-go-a,$(T))))
 $(DESTDIR)/macos/libwg-kit-go.a: $(foreach T,$(MACOS_TARGETS),$(BUILDDIR)/libwg-kit-go-$(T).a)
 	@mkdir -p "$(dir $@)"
 	$(LIPO) -create -output "$@" $^
+	# Ensure header is copied (fallback)
+	@if [ ! -f "$(INCLUDEDIR)/wg-kit-go.h" ]; then \
+	  for h in $(BUILDDIR)/*.h; do \
+	    if [ -f "$$h" ]; then \
+	      cp -f "$$h" "$(INCLUDEDIR)/wg-kit-go.h"; \
+	      break; \
+	    fi; \
+	  done; \
+	fi
 
 $(DESTDIR)/ios-device/libwg-kit-go.a: $(foreach T,$(IOS_DEVICE_TARGETS),$(BUILDDIR)/libwg-kit-go-$(T).a)
 	@mkdir -p "$(dir $@)"
