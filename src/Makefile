@@ -49,7 +49,7 @@ IOS_SIM_TARGETS ?= \
   arm64-apple-ios$(IPHONEOS_DEPLOYMENT_TARGET)-simulator \
   x86_64-apple-ios$(IPHONEOS_DEPLOYMENT_TARGET)-simulator
 
-build: $(DESTDIR)/wg-kit-go.xcframework
+build: $(DESTDIR)/wg-go.xcframework
 version-header: $(DESTDIR)/wireguard-go-version.h
 
 # --- Go toolchain staging (for applying your goruntime-* patches) ---
@@ -65,50 +65,50 @@ $(GOROOT)/.prepared:
 	touch "$@"
 
 # --- Pattern: build a c-archive for a single target triple ---
-# Produces: $(BUILDDIR)/libwg-kit-go-<triple>.a and header next to it; also sync a canonical header to $(INCLUDEDIR)/wg-kit-go.h
-define libwg-kit-go-a
-$(BUILDDIR)/libwg-kit-go-$(1).a: export CGO_ENABLED := 1
-$(BUILDDIR)/libwg-kit-go-$(1).a: export CGO_CFLAGS := -isysroot "$(if $(findstring macosx,$(1)),$(SDKROOT_macosx),$(if $(findstring -simulator,$(1)),$(SDKROOT_iphonesimulator),$(SDKROOT_iphoneos)))" -target $(1)
-$(BUILDDIR)/libwg-kit-go-$(1).a: export CGO_LDFLAGS := -isysroot "$(if $(findstring macosx,$(1)),$(SDKROOT_macosx),$(if $(findstring -simulator,$(1)),$(SDKROOT_iphonesimulator),$(SDKROOT_iphoneos)))" -target $(1)
-$(BUILDDIR)/libwg-kit-go-$(1).a: export GOOS := $(if $(findstring macosx,$(1)),$(GOOS_macosx),$(GOOS_iphoneos))
-$(BUILDDIR)/libwg-kit-go-$(1).a: export GOARCH := $(subst x86_64,amd64,$(word 1,$(subst -, ,$(1))))
-$(BUILDDIR)/libwg-kit-go-$(1).a: $(GOROOT)/.prepared go.mod
+# Produces: $(BUILDDIR)/libwg-go-<triple>.a and header next to it; also sync a canonical header to $(INCLUDEDIR)/wg-go.h
+define libwg-go-a
+$(BUILDDIR)/libwg-go-$(1).a: export CGO_ENABLED := 1
+$(BUILDDIR)/libwg-go-$(1).a: export CGO_CFLAGS := -isysroot "$(if $(findstring macosx,$(1)),$(SDKROOT_macosx),$(if $(findstring -simulator,$(1)),$(SDKROOT_iphonesimulator),$(SDKROOT_iphoneos)))" -target $(1)
+$(BUILDDIR)/libwg-go-$(1).a: export CGO_LDFLAGS := -isysroot "$(if $(findstring macosx,$(1)),$(SDKROOT_macosx),$(if $(findstring -simulator,$(1)),$(SDKROOT_iphonesimulator),$(SDKROOT_iphoneos)))" -target $(1)
+$(BUILDDIR)/libwg-go-$(1).a: export GOOS := $(if $(findstring macosx,$(1)),$(GOOS_macosx),$(GOOS_iphoneos))
+$(BUILDDIR)/libwg-go-$(1).a: export GOARCH := $(subst x86_64,amd64,$(word 1,$(subst -, ,$(1))))
+$(BUILDDIR)/libwg-go-$(1).a: $(GOROOT)/.prepared go.mod
 	@echo "Building target: $(1)"
 	@echo "SDK_FOR_TARGET: $$(SDK_FOR_TARGET)"
 	@echo "CGO_CFLAGS: $$(CGO_CFLAGS)"
-	go build -ldflags=-w -trimpath -v -o "$(BUILDDIR)/libwg-kit-go-$(1).a" -buildmode c-archive
+	go build -ldflags=-w -trimpath -v -o "$(BUILDDIR)/libwg-go-$(1).a" -buildmode c-archive
 	# Keep the generated header; copy first one we see to canonical include path
 	@h="$$(dirname "$@")/$$(basename "$@" .a).h"; \
 	if [ -f "$$h" ]; then \
-	  cp -f "$$h" "$(INCLUDEDIR)/wg-kit-go.h"; \
+	  cp -f "$$h" "$(INCLUDEDIR)/wg-go.h"; \
 	fi
 endef
 
 # Emit rules for all required triples
-$(foreach T,$(MACOS_TARGETS),$(eval $(call libwg-kit-go-a,$(T))))
-$(foreach T,$(IOS_DEVICE_TARGETS),$(eval $(call libwg-kit-go-a,$(T))))
-$(foreach T,$(IOS_SIM_TARGETS),$(eval $(call libwg-kit-go-a,$(T))))
+$(foreach T,$(MACOS_TARGETS),$(eval $(call libwg-go-a,$(T))))
+$(foreach T,$(IOS_DEVICE_TARGETS),$(eval $(call libwg-go-a,$(T))))
+$(foreach T,$(IOS_SIM_TARGETS),$(eval $(call libwg-go-a,$(T))))
 
 # --- Per-platform lipos ---
-$(DESTDIR)/macos/libwg-kit-go.a: $(foreach T,$(MACOS_TARGETS),$(BUILDDIR)/libwg-kit-go-$(T).a)
+$(DESTDIR)/macos/libwg-go.a: $(foreach T,$(MACOS_TARGETS),$(BUILDDIR)/libwg-go-$(T).a)
 	@mkdir -p "$(dir $@)"
 	$(LIPO) -create -output "$@" $^
 	# Ensure header is copied (fallback)
-	@if [ ! -f "$(INCLUDEDIR)/wg-kit-go.h" ]; then \
+	@if [ ! -f "$(INCLUDEDIR)/wg-go.h" ]; then \
 	  for h in $(BUILDDIR)/*.h; do \
 	    if [ -f "$$h" ]; then \
-	      cp -f "$$h" "$(INCLUDEDIR)/wg-kit-go.h"; \
+	      cp -f "$$h" "$(INCLUDEDIR)/wg-go.h"; \
 	      break; \
 	    fi; \
 	  done; \
 	fi
 
-$(DESTDIR)/ios-device/libwg-kit-go.a: $(foreach T,$(IOS_DEVICE_TARGETS),$(BUILDDIR)/libwg-kit-go-$(T).a)
+$(DESTDIR)/ios-device/libwg-go.a: $(foreach T,$(IOS_DEVICE_TARGETS),$(BUILDDIR)/libwg-go-$(T).a)
 	@mkdir -p "$(dir $@)"
 	# Usually only one slice (arm64), but lipo keeps rule uniform
 	$(LIPO) -create -output "$@" $^
 
-$(DESTDIR)/ios-sim/libwg-kit-go.a: $(foreach T,$(IOS_SIM_TARGETS),$(BUILDDIR)/libwg-kit-go-$(T).a)
+$(DESTDIR)/ios-sim/libwg-go.a: $(foreach T,$(IOS_SIM_TARGETS),$(BUILDDIR)/libwg-go-$(T).a)
 	@mkdir -p "$(dir $@)"
 	$(LIPO) -create -output "$@" $^
 
@@ -118,22 +118,22 @@ $(DESTDIR)/wireguard-go-version.h: go.mod $(GOROOT)/.prepared
 	sed -E -n 's/.*golang\.zx2c4\.com\/wireguard +v[0-9.]+-[0-9]+-([0-9a-f]{8})[0-9a-f]{4}.*/#define WIREGUARD_GO_VERSION "\1"/p' "$<" > "$@"
 
 # --- XCFramework packaging (final artifact) ---
-$(DESTDIR)/wg-kit-go.xcframework: $(DESTDIR)/macos/libwg-kit-go.a $(DESTDIR)/ios-device/libwg-kit-go.a $(DESTDIR)/ios-sim/libwg-kit-go.a $(INCLUDEDIR)/wg-kit-go.h
+$(DESTDIR)/wg-go.xcframework: $(DESTDIR)/macos/libwg-go.a $(DESTDIR)/ios-device/libwg-go.a $(DESTDIR)/ios-sim/libwg-go.a $(INCLUDEDIR)/wg-go.h
 	$(XCBUILD) -create-xcframework \
-	  -library "$(DESTDIR)/macos/libwg-kit-go.a"      -headers "$(INCLUDEDIR)" \
-	  -library "$(DESTDIR)/ios-device/libwg-kit-go.a" -headers "$(INCLUDEDIR)" \
-	  -library "$(DESTDIR)/ios-sim/libwg-kit-go.a"    -headers "$(INCLUDEDIR)" \
+	  -library "$(DESTDIR)/macos/libwg-go.a"      -headers "$(INCLUDEDIR)" \
+	  -library "$(DESTDIR)/ios-device/libwg-go.a" -headers "$(INCLUDEDIR)" \
+	  -library "$(DESTDIR)/ios-sim/libwg-go.a"    -headers "$(INCLUDEDIR)" \
 	  -output "$@"
 
 # Convenience aggregate (kept for compatibility with older callers)
-fat-macos: $(DESTDIR)/macos/libwg-kit-go.a
-fat-ios-sim: $(DESTDIR)/ios-sim/libwg-kit-go.a
-fat-ios-device: $(DESTDIR)/ios-device/libwg-kit-go.a
+fat-macos: $(DESTDIR)/macos/libwg-go.a
+fat-ios-sim: $(DESTDIR)/ios-sim/libwg-go.a
+fat-ios-device: $(DESTDIR)/ios-device/libwg-go.a
 
 clean:
 	rm -rf "$(BUILDDIR)" \
 	  "$(DESTDIR)/macos" "$(DESTDIR)/ios-sim" "$(DESTDIR)/ios-device" \
-	  "$(DESTDIR)/wg-kit-go.xcframework" \
+	  "$(DESTDIR)/wg-go.xcframework" \
 	  "$(DESTDIR)/wireguard-go-version.h"
 
 install: build
