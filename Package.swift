@@ -4,11 +4,11 @@
 import PackageDescription
 
 let filename = "wg-go.xcframework.zip"
-let version = "0.0.20250902"
-let checksum = "42200fdc5750687331f1c9a0b831e9eac90c885e6b2ebda7ff0b88d939f63656"
+let version = "0.0.20250903"
+let checksum = "2a050c73213f3849659a80fcd10ddd121011cbb3a17d1b53bbee3d288a772d50"
 
 let package = Package(
-    name: "wg-go-apple",
+    name: "WGKitGo",
     platforms: [
         .iOS(.v15),
         .macOS(.v12),
@@ -16,21 +16,22 @@ let package = Package(
     ],
     products: [
         .library(
-            name: "wg-go-apple",
-            targets: ["wg-go"]
-        )
+            name: "WGKitGo",
+            targets: ["WGKitGo"]
+        ),
     ],
     targets: [
         .binaryTarget(
-            name: "wg-go",
+            name: "WGKitGo",
             url: "https://github.com/cheskapac/wg-go-apple/releases/download/\(version)/\(filename)",
             checksum: checksum
         )
-
-//        // local development
-//        .binaryTarget(
-//            name: "wg-go",
-//            path: "build/wg-go.xcframework.zip"
-//        )
+/*
+        // local development
+       .binaryTarget(
+           name: "WGKitGo",
+           path: "src/out/wg-go.xcframework"
+       )
+*/
     ]
 )

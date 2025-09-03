@@ -1,5 +1,4 @@
-module WireGuardKitGoBinary {
-    umbrella header "wireguard.h"
-    link "wg-go"
+module WGKitGo {
+    header "WGKitGo.h"
     export *
 }

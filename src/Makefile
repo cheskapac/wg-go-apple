@@ -25,6 +25,7 @@ XCBUILD ?= xcodebuild
 DESTDIR ?= $(CONFIGURATION_BUILD_DIR)
 BUILDDIR ?= $(CONFIGURATION_TEMP_DIR)/wireguard-go-bridge
 INCLUDEDIR := $(BUILDDIR)/include
+STAGED_HEADERS := $(CURDIR)/module.modulemap
 
 # Per-platform SDK roots so we don't mix MacOSX sysroot with iPhone targets
 # Use direct paths since xcrun is not working properly
@@ -55,6 +56,7 @@ version-header: $(DESTDIR)/wireguard-go-version.h
 # --- Go toolchain staging (for applying your goruntime-* patches) ---
 REAL_GOROOT := $(shell go env GOROOT 2>/dev/null)
 export GOROOT := $(BUILDDIR)/goroot
+
 $(GOROOT)/.prepared:
 	[ -n "$(REAL_GOROOT)" ]
 	mkdir -p "$(GOROOT)"
@@ -63,6 +65,11 @@ $(GOROOT)/.prepared:
 	test -z "$$(ls -1 goruntime-*.diff 2>/dev/null)" || cat goruntime-*.diff | patch -p1 -f -N -r- -d "$(GOROOT)"
 	mkdir -p "$(INCLUDEDIR)"
 	touch "$@"
+
+$(INCLUDEDIR)/.headers_staged:
+	@mkdir -p "$(INCLUDEDIR)"
+	@cp -f $(STAGED_HEADERS) "$(INCLUDEDIR)/"
+	@touch "$@"
 
 # --- Pattern: build a c-archive for a single target triple ---
 # Produces: $(BUILDDIR)/libwg-go-<triple>.a and header next to it; also sync a canonical header to $(INCLUDEDIR)/wg-go.h
@@ -80,7 +87,7 @@ $(BUILDDIR)/libwg-go-$(1).a: $(GOROOT)/.prepared go.mod
 	# Keep the generated header; copy first one we see to canonical include path
 	@h="$$(dirname "$@")/$$(basename "$@" .a).h"; \
 	if [ -f "$$h" ]; then \
-	  cp -f "$$h" "$(INCLUDEDIR)/wg-go.h"; \
+	  cp -f "$$h" "$(INCLUDEDIR)/WGKitGo.h"; \
 	fi
 endef
 
@@ -94,10 +101,10 @@ $(DESTDIR)/macos/libwg-go.a: $(foreach T,$(MACOS_TARGETS),$(BUILDDIR)/libwg-go-$
 	@mkdir -p "$(dir $@)"
 	$(LIPO) -create -output "$@" $^
 	# Ensure header is copied (fallback)
-	@if [ ! -f "$(INCLUDEDIR)/wg-go.h" ]; then \
+	@if [ ! -f "$(INCLUDEDIR)/WGKitGo.h" ]; then \
 	  for h in $(BUILDDIR)/*.h; do \
 	    if [ -f "$$h" ]; then \
-	      cp -f "$$h" "$(INCLUDEDIR)/wg-go.h"; \
+	      cp -f "$$h" "$(INCLUDEDIR)/WGKitGo.h"; \
 	      break; \
 	    fi; \
 	  done; \
@@ -118,7 +125,7 @@ $(DESTDIR)/wireguard-go-version.h: go.mod $(GOROOT)/.prepared
 	sed -E -n 's/.*golang\.zx2c4\.com\/wireguard +v[0-9.]+-[0-9]+-([0-9a-f]{8})[0-9a-f]{4}.*/#define WIREGUARD_GO_VERSION "\1"/p' "$<" > "$@"
 
 # --- XCFramework packaging (final artifact) ---
-$(DESTDIR)/wg-go.xcframework: $(DESTDIR)/macos/libwg-go.a $(DESTDIR)/ios-device/libwg-go.a $(DESTDIR)/ios-sim/libwg-go.a $(INCLUDEDIR)/wg-go.h
+$(DESTDIR)/wg-go.xcframework: $(DESTDIR)/macos/libwg-go.a $(DESTDIR)/ios-device/libwg-go.a $(DESTDIR)/ios-sim/libwg-go.a $(INCLUDEDIR)/WGKitGo.h $(INCLUDEDIR)/.headers_staged
 	$(XCBUILD) -create-xcframework \
 	  -library "$(DESTDIR)/macos/libwg-go.a"      -headers "$(INCLUDEDIR)" \
 	  -library "$(DESTDIR)/ios-device/libwg-go.a" -headers "$(INCLUDEDIR)" \
